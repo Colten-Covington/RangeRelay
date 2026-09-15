@@ -22,7 +22,13 @@ The release gateway runs inside the provider boundary and constructs a new publi
 
 ## What is implemented
 
-This repository is a runnable, zero-dependency TypeScript reference MVP:
+This repository now contains both the public product experience and the zero-dependency TypeScript API reference:
+
+- responsive Next.js 16 marketing site;
+- provenance-aware public mission explorer;
+- provider release control room with dry-run, manifest, authorization, stop, credential, and audit UX;
+- consumer developer workspace with channel discovery, live event inspection, API key prototype, and copyable examples;
+- metadata, sitemap, robots policy, accessible reduced-motion support, and production standalone build;
 
 - signed HMAC-SHA256 ingestion with a 30-second replay window;
 - immutable deny rules plus per-channel field allowlists, types, units, bounds, and string limits;
@@ -41,18 +47,21 @@ Node.js 24 or newer is required.
 
 ```bash
 cp .env.example .env
-set -a; . ./.env; set +a
+npm install
 npm test
-npm start
+npm run dev
 ```
 
-In another shell:
+The product UI runs at `http://localhost:3000`. The reference ingestion API remains independently runnable:
 
 ```bash
+npm run dev:api
 node --experimental-strip-types examples/provider-gateway/gateway.ts
 curl http://127.0.0.1:8787/v1/channels/demo-flight/latest
 curl -N http://127.0.0.1:8787/v1/channels/demo-flight/stream
 ```
+
+The current UI uses labeled synthetic pilot data. Set `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_RANGERELAY_API_URL` in the deployment environment before connecting live product data.
 
 ## API surface
 
@@ -82,6 +91,9 @@ See [`openapi.yaml`](openapi.yaml) for the full contract.
 
 | Path | Contents |
 | --- | --- |
+| `app/` | Marketing, provider, consumer, explorer routes and metadata |
+| `components/` | Shared product UI and interactive workspaces |
+| `data/` | Synthetic, clearly labeled pilot fixtures |
 | `src/` | Reference API, policy engine, signing, and event store |
 | `examples/provider-gateway/` | Provider-side safe projection and publisher |
 | `config/channels.json` | Demo public schema and release policy |
@@ -94,7 +106,7 @@ See [`openapi.yaml`](openapi.yaml) for the full contract.
 
 ## Current status
 
-This is a validated reference slice, not a production launch service. Before any real provider data is accepted, complete the P0 gates in the product plan: counsel review, two-person production authorization, durable append-only audit records, managed key custody, tenant isolation, load/chaos tests, an incident exercise, and a provider-signed schema authorization.
+This is a validated product prototype and reference API, not a production launch service. Provider/consumer authentication and control-plane mutations are intentionally represented as synthetic pilot interactions until durable persistence, identity, authorization, managed keys, and audit services are implemented. Before any real provider data is accepted, complete the P0 gates in the product plan: counsel review, two-person production authorization, durable append-only audit records, managed key custody, tenant isolation, load/chaos tests, an incident exercise, and a provider-signed schema authorization.
 
 ## License
 

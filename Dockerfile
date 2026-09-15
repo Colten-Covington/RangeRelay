@@ -1,9 +1,21 @@
-FROM node:24-alpine
+FROM node:24-alpine AS dependencies
 WORKDIR /app
-COPY package.json ./
-COPY src ./src
-COPY config ./config
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=8787
+COPY package.json package-lock.json ./
+RUN npm ci
+
+FROM node:24-alpine AS builder
+WORKDIR /app
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY . .
+RUN npm run build
+
+FROM node:24-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production HOSTNAME=0.0.0.0 PORT=3000
+RUN chown node:node /app
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/openapi.yaml ./openapi.yaml
 USER node
-EXPOSE 8787
-CMD ["node", "--experimental-strip-types", "src/server.ts"]
+EXPOSE 3000
+CMD ["node", "server.js"]
