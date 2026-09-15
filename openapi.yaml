@@ -1,0 +1,218 @@
+openapi: 3.1.0
+info:
+  title: RangeRelay API
+  version: 0.1.0
+  description: Provider-controlled public launch telemetry reference API. Not for command, safety-critical, restricted, or raw engineering data.
+servers:
+  - url: http://127.0.0.1:8787
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/channels:
+    get:
+      operationId: listChannels
+      responses:
+        "200":
+          description: Public channel directory
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Channel"
+  /v1/channels/{channelId}:
+    parameters:
+      - $ref: "#/components/parameters/ChannelId"
+    get:
+      operationId: getChannel
+      responses:
+        "200":
+          description: Channel and approved public schema
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Channel" }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/channels/{channelId}/latest:
+    parameters:
+      - $ref: "#/components/parameters/ChannelId"
+    get:
+      operationId: getLatestEvent
+      responses:
+        "200":
+          description: Latest released event
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/PublicEvent" }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/channels/{channelId}/events:
+    parameters:
+      - $ref: "#/components/parameters/ChannelId"
+      - name: after
+        in: query
+        schema: { type: integer, minimum: -1, default: -1 }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+    get:
+      operationId: listEvents
+      responses:
+        "200":
+          description: Released events ordered by provider sequence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/PublicEvent" }
+  /v1/channels/{channelId}/stream:
+    parameters:
+      - $ref: "#/components/parameters/ChannelId"
+    get:
+      operationId: streamEvents
+      responses:
+        "200":
+          description: Server-Sent Events stream with `ready` and `telemetry` events
+          content:
+            text/event-stream:
+              schema: { type: string }
+  /v1/ingest/{channelId}:
+    parameters:
+      - $ref: "#/components/parameters/ChannelId"
+    post:
+      operationId: ingestEvent
+      description: Sign `${X-RangeRelay-Timestamp}.${rawRequestBody}` using HMAC-SHA256. Reference only; production uses mTLS and asymmetric per-provider keys.
+      security: [{ ingestKey: [], ingestSignature: [], ingestTimestamp: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IncomingEnvelope" }
+      responses:
+        "202": { description: Accepted for release }
+        "200": { description: Duplicate already accepted }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "423": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/admin/channels/{channelId}/status:
+    parameters:
+      - $ref: "#/components/parameters/ChannelId"
+    post:
+      operationId: setChannelStatus
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [off, armed, live] }
+      responses:
+        "200": { description: Updated channel }
+        "401": { $ref: "#/components/responses/Error" }
+components:
+  parameters:
+    ChannelId:
+      name: channelId
+      in: path
+      required: true
+      schema: { type: string, pattern: "^[a-z0-9][a-z0-9-]{0,62}$" }
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+    ingestKey: { type: apiKey, in: header, name: X-RangeRelay-Key-Id }
+    ingestSignature: { type: apiKey, in: header, name: X-RangeRelay-Signature }
+    ingestTimestamp: { type: apiKey, in: header, name: X-RangeRelay-Timestamp }
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Scalar:
+      oneOf:
+        - { type: string }
+        - { type: number }
+        - { type: boolean }
+    FieldDefinition:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [string, number, boolean] }
+        unit: { type: string }
+        min: { type: number }
+        max: { type: number }
+        maxLength: { type: integer, minimum: 1 }
+    Channel:
+      type: object
+      required: [id, displayName, provider, status, delaySeconds, schemaVersion, fields]
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        provider: { type: string }
+        status: { type: string, enum: [off, armed, live] }
+        delaySeconds: { type: integer, minimum: 0 }
+        schemaVersion: { type: string }
+        fields:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/FieldDefinition" }
+    IncomingEnvelope:
+      type: object
+      additionalProperties: false
+      required: [eventId, observedAt, sequence, values]
+      properties:
+        eventId: { type: string, minLength: 1, maxLength: 128 }
+        observedAt: { type: string, format: date-time }
+        sequence: { type: integer, minimum: 0 }
+        values:
+          type: object
+          minProperties: 1
+          maxProperties: 64
+          additionalProperties: { $ref: "#/components/schemas/Scalar" }
+    PublicEvent:
+      allOf:
+        - $ref: "#/components/schemas/IncomingEnvelope"
+        - type: object
+          required: [channelId, schemaVersion, receivedAt, releaseAt]
+          properties:
+            channelId: { type: string }
+            schemaVersion: { type: string }
+            receivedAt: { type: string, format: date-time }
+            releaseAt: { type: string, format: date-time }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            requestId: { type: string, format: uuid }
+            details:
+              type: array
+              items: { type: string }

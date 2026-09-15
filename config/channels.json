@@ -1,0 +1,22 @@
+{
+  "channels": [
+    {
+      "id": "demo-flight",
+      "displayName": "RangeRelay Demonstration Flight",
+      "provider": "RangeRelay Labs",
+      "status": "live",
+      "delaySeconds": 0,
+      "maxEventsPerSecond": 10,
+      "retentionSeconds": 3600,
+      "schemaVersion": "1.0.0",
+      "fields": {
+        "mission_elapsed_time": { "type": "number", "unit": "s", "min": -86400, "max": 2592000 },
+        "altitude": { "type": "number", "unit": "m", "min": -500, "max": 2000000 },
+        "speed": { "type": "number", "unit": "m/s", "min": 0, "max": 20000 },
+        "downrange_distance": { "type": "number", "unit": "m", "min": 0, "max": 5000000 },
+        "stage": { "type": "string", "maxLength": 40 },
+        "event": { "type": "string", "maxLength": 120 }
+      }
+    }
+  ]
+}
